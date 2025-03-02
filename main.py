@@ -6,31 +6,28 @@ import re
 app = Flask(__name__)
 
 
-def extract_after_think(text):
-    match = re.search(r"</think>\s*(.*)", text, re.DOTALL)
-    return match.group(1).strip() if match else None
+
 
 
 def clean_text(content: str) -> str:
     return content
 
 
-def get_response_from_ollama(user_input):
-    response = ollama.chat(model="deepseek-r1:7b", messages=[{"role": "user", "content": user_input}])
-
-    if 'message' in response:
-        return extract_after_think(response['message']['content'])
-    else:
-        return 'Sorry, something went wrong.'
+def get_response_from_ollama(prompt, user_input):
+    response = ollama.generate(model="phi3", prompt=f"{prompt}: {user_input}", stream=False)
+    return  response.response
 
 
-def get_tweet_prompt(content):
-    return f"Rewrite this blog content as a highly engaging Twitter post for maximum reach and virality:\n\n{content}"
+def get_tweet_prompt():
+    return "Summarize this blog content as a highly engaging Twitter post for maximum reach and virality"
 
 
-def get_linkedin_prompt(content):
-    return f"Rewrite this blog content as a highly engaging linkedin post for maximum reach and virality:\n\n{content}"
+def get_linkedin_prompt():
+    return "Summarize this blog content as a highly engaging linkedin post for maximum reach and virality"
 
+@app.route("/")
+def hello():
+    return "Hello world"
 
 @app.route("/generate-summary", methods=["POST"])
 def tweet_generator():
@@ -38,20 +35,20 @@ def tweet_generator():
         category = request.args.get("category")
         data = request.get_json()
         blog_content = data.get("blog_content", "").strip()
-        generated_post = ""
 
         if not blog_content:
             return jsonify({"error": "Blog content is required"}), 400
 
-        if (category == "tweet"):
-            prompt = get_tweet_prompt(blog_content)
-            generated_post = get_response_from_ollama(prompt + blog_content)
+        prompt = ''
+        if category == "tweet":
+            prompt = get_tweet_prompt()
 
-        if (category == "linkedin"):
-            prompt = get_linkedin_prompt(blog_content)
-            generated_post = get_response_from_ollama(prompt + blog_content)
+        if category == "linkedin":
+            prompt = get_linkedin_prompt()
 
-        return jsonify({"post": clean_text(generated_post)})
+        generated_post = get_response_from_ollama(prompt, blog_content)
+
+        return jsonify({"post": clean_text(generated_post)}), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
